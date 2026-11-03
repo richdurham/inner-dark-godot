@@ -57,7 +57,7 @@ Game direction includes a useful abstraction of a living Solar System, tick-base
 5. Narrative bridge: explicit local process contract, graceful unavailable behavior, character-scoped context, strict proposal validation.
 6. Expansion: broaden locations, economy, careers, factions, and content based on slice evidence.
 
-Ordering goals, not schedule commitments.
+Ordering goals, not schedule commitments. See the [implementation roadmap](roadmap.md) for phase deliverables, dependencies, and exit gates.
 
 ## Risks and mitigation
 
