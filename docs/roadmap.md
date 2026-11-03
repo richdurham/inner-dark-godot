@@ -15,11 +15,15 @@ The current Godot scene is only a temporary 2D interaction test. The user has re
 | Godot shell | Exists | One main scene and one attached GDScript. |
 | Temporary interaction test | Exists | Movement, source proximity, authored text, progress counter, restart. It is presentation-only. |
 | 3D wireframe direction | Unverified here | Mentioned by the user; source brief/reference must be recovered before implementing it. |
-| Typed world model and simulation tick | Not implemented | Required foundation and first simulation milestone. |
-| Event history and save/load | Not implemented | Design direction only. |
-| Travel, work, economy, validated choices | Not implemented | Planned; begin with only the Ceres resources needed to prove a loop. |
+| Typed world model and simulation tick | Partial foundation | Typed stock/state/result/event/engine scripts exist; a generic tick and stock adjustment are visible through T in the scene. No approved settlement rules, persistence, or automated tests yet. |
+| Event history and save/load | Partial / not implemented | Events are retained in memory for the running demo; there is no durable event log or save/load. |
+| Travel, work, economy, validated choices | Not implemented | Planned; the current reserve demo has no player choice or settlement economy. |
 | Python narrative subsystem | Exists separately | Standalone local prototype; current user confirmed its stub-mode plumbing test completed. |
 | Godot/Python integration | Not implemented | Draft contract only; defer until game-side behavior is authoritative and independently playable. |
+
+## Phase 1 status after initial foundation work
+
+The generic contracts exist in `simulation/resource_stock.gd`, `simulation/simulation_state.gd`, `simulation/simulation_event.gd`, `simulation/simulation_result.gd`, and `simulation/simulation_engine.gd`. `simulation/ceres_run_simulation.gd` currently demonstrates the connection: T advances the tick and consumes one reserve-day from a 6.0-day starting value. Both values are temporary demo assumptions, not established Ceres facts. The UI shows the current reserve, day, and latest event. Phase 1 remains in progress: automated state/action tests, a save direction, and actual Ceres rules are still needed. Phase 2 is only a visible demonstration, not a settlement simulation.
 
 ## Working principles
 

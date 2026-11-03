@@ -21,14 +21,18 @@ The user recently ran the Python project successfully in stub mode and confirmed
 
 - Godot project main scene: `res://main.tscn`.
 - The main scene is a `Control` using `res://main.gd`; the script draws a top-down 2D floorplan and creates a keyboard-driven briefing overlay.
-- The temporary demo supports movement, proximity interaction with the crisis board and three NPC sources, progress tracking, and restart. All progress is transient presentation state.
-- No typed simulation model, deterministic tick, event history, save/load, travel, economy, validated consequence, player career, storylet system, local narrative runtime, or Godot/Python bridge exists.
+- The temporary demo supports movement, proximity interaction with the crisis board and three NPC sources, progress tracking, T-key simulation advancement, and restart. State is transient; nothing is saved.
+- The `simulation/` directory contains typed stock/state/result/event contracts and an engine. `CeresRunSimulation` connects them to the scene: the demo starts at 6.0 water-reserve days and consumes 1.0 reserve-day per T press, displaying the current reserve, day, and latest event. Those values/rules are temporary demonstration assumptions, not canon. No production model, capacity rules, actor permissions, save/load, or validated player intervention exists.
 - Godot-AI editor tooling is installed under `addons/godot_ai`. It is editor support, not gameplay architecture.
-- A prior smoke check launched the scene, moved the player, interacted with Mara, and observed the progress counter advance to 1/4. This does not certify all interactions or any simulation feature.
+- Smoke checks launched the scene, verified movement and one Mara interaction, and verified T changes the reserve from 6.0 to 5.0 days with an event shown. These do not certify all interactions, final visuals, or approved settlement rules.
+
+## Current simulation foundation
+
+This is a contract layer plus a deliberately small visible demo rule, not a finished settlement simulation. Preserve the generic API; do not silently promote the 6.0-day start or 1.0-day use rate into canon. The state snapshot sorts stock IDs and returns event dictionaries. Rejected stock changes leave state and event sequence untouched. No automated gameplay tests have been written or run for these scripts yet.
 
 ## User direction to preserve
 
-The user said the current Godot demo does not match the intended 3D wireframe brief and is a side track. Treat the 2D scene as a throwaway interaction test, not the visual design specification. The user does not want more time spent polishing or extending it right now. The 3D wireframe brief/reference was not found in the checked-in docs at handoff creation; locate/read it before attempting visual implementation. Do not invent what it looks like.
+The user said the 2D scene does not match the intended 3D wireframe brief and is a side track, then asked to continue the simulation and connect it to the scene. Keep the current T-key simulation display minimal; do not polish the 2D layout or treat it as the 3D specification. The 3D brief/reference was not found in checked-in docs at handoff creation; locate/read it before visual implementation. Do not invent what it looks like.
 
 The Python test the user just completed was only a stub plumbing test. The user has not asked for model-quality benchmarking or for the Python subsystem to be integrated.
 
@@ -48,7 +52,7 @@ Ceres reserves are below one week; a commercial freighter carrying water-treatme
 
 ## Recommended next work
 
-Follow `docs/roadmap.md`. First recover the 3D wireframe brief if visual work is needed. For gameplay architecture, the next substantive step is the foundation: agree minimal typed state and deterministic action/tick/event contracts, then implement one bounded Ceres stock transition and test it without UI or models. Keep the first slice small and report open decisions instead of silently canonizing them.
+Follow `docs/roadmap.md`. First recover the 3D wireframe brief if visual work is needed. For gameplay, add focused automated tests for the state/tick/stock-change contracts. Then replace the temporary reserve decrement with an agreed Ceres rule and player action; define quantities, units, and consequences rather than treating the demo values as canon.
 
 ## Godot workflow
 

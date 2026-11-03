@@ -15,11 +15,11 @@ The Inner Dark is a grounded, character-centered science-fiction RPG set across 
 
 The opening scene is a temporary top-down 2D interaction test: move with WASD/arrow keys, approach the crisis board or one of three sources, press E to inspect/speak, and press R to restart. It demonstrates authored crisis information and basic interaction only. It is not the intended 3D wireframe brief or a simulation. The 3D reference/brief must be recovered before further visual implementation.
 
-No colony simulation, deterministic ticks, game-state persistence, economy, travel, validated choices, storylets, local model runtime, or Godot-to-Python integration is implemented. The Python narrative prototype runs independently.
+A small simulation foundation now exists in `simulation/`: typed stock values and state, tick advancement, validated stock changes, and inspectable events. The scene is connected to a temporary water-reserve demo: press T to advance a day. Its 6.0-day starting reserve and one reserve-day consumed per advance are placeholders, not established game facts. The display demonstrates a state transition, not a finished settlement economy. Persistence, production/consumption rules, travel, validated story choices, storylets, local model runtime, and Godot-to-Python integration are not implemented. The Python narrative prototype runs independently.
 
 ## Running the scene
 
-Open this project in Godot and run the main scene (F5). The temporary test uses WASD/arrow keys, E to interact, and R to restart.
+Open this project in Godot and run the main scene (F5). The temporary test uses WASD/arrow keys, E to interact, T to advance the demo simulation, and R to restart.
 
 ## Project constraints
 

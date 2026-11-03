@@ -14,7 +14,7 @@ Keep this ownership boundary clear. Cross-link subsystem specifics instead of co
 
 The project opens `res://main.tscn`, whose root is a `Control` using `res://main.gd`. The script draws a top-down floorplan, source markers, and player marker with `_draw()`, constructs a UI overlay from Control nodes, processes movement and interaction, and stores the current briefing progress in script variables.
 
-The temporary scene supports movement with WASD/arrow keys, E to inspect or speak near the crisis board and three information sources, and R to restart. It presents documented Ceres facts and a completion message. Position and source-review progress are transient: there is no save, simulation tick, world-state model, event log, or consequential action.
+The temporary scene supports movement with WASD/arrow keys, E to inspect or speak near the crisis board and three information sources, T to advance the simulation demo, and R to restart. It presents documented Ceres facts and a completion message. Position and source-review progress are transient. The top-right status card displays reserve days, simulation day, and the latest event. The simulation starts at 6.0 days and consumes one reserve-day per T press; these are temporary demonstration assumptions, not canon.
 
 **Visual status:** this is a quick 2D interaction prototype. It is not the intended 3D wireframe brief and is not a locked art direction. The 3D wireframe brief/reference is not present in the checked-in design docs reviewed for this update. Recover that brief before doing further visual implementation; do not infer its layout, camera, scale, or asset language from this 2D test.
 
@@ -26,11 +26,13 @@ Godot 4.7.2 was reported by the connected editor at the last review. The Godot-A
 project.godot -> main.tscn -> Main (Control) / main.gd
                                    ├─ draws the temporary floorplan and markers
                                    ├─ creates the header, interaction and objective UI
-                                   ├─ reads movement / interact / restart input
-                                   └─ updates volatile player and briefing variables
+                                   ├─ reads movement / interact / restart / advance-day input
+                                   ├─ sends T to CeresRunSimulation
+                                   │       └─ SimulationEngine -> SimulationState -> events
+                                   └─ updates player and briefing presentation state
 ```
 
-No other game scripts, gameplay scenes, domain resources, or project-owned autoloads were found at the time of review. The `_mcp_game_helper` autoload belongs to the Godot-AI editor plugin.
+Game-owned simulation scripts now exist under `simulation/`; no other gameplay scenes or project-owned autoloads were found. The `_mcp_game_helper` autoload belongs to the Godot-AI editor plugin.
 
 ## Target dependency direction
 
@@ -48,6 +50,19 @@ Godot game <-> future local narrative process
 ```
 
 This is a direction for future work, not an implemented module map. Keep domain rules independent of scene nodes. Presentation may request actions and display outcomes; it must not mutate canonical world state directly.
+
+## Simulation foundation currently implemented
+
+The following GDScript contracts are present, but they are not connected to `main.tscn` or a user-facing inspector:
+
+- `simulation/resource_stock.gd` defines a resource ID, non-negative finite amount, and unit. It does not set game-specific values or capacities.
+- `simulation/simulation_state.gd` holds a tick index, stocks, a monotonically increasing event sequence, and in-memory event history. It can return a sorted stock snapshot and serialized event dictionaries.
+- `simulation/simulation_event.gd` carries sequence, tick, type, summary, and payload.
+- `simulation/simulation_result.gd` represents accepted/rejected results and an optional event.
+- `simulation/simulation_engine.gd` advances the tick counter and emits a `tick_advanced` event; its generic `change_stock` operation validates resource existence, finite non-zero changes, non-negative resulting stock, and a non-empty reason before mutating and emitting `stock_changed`.
+- `simulation/ceres_run_simulation.gd` wraps those generic operations for the current scene. It seeds a 6.0-day reserve and applies 1.0 reserve-day of use per T press. These values exist only to make the state transition visible and reproducible; they are not approved Ceres simulation rules.
+
+The core remains a generic contract layer. It does not model production, water-treatment capacity, actor permissions, action costs, save/load, or seeded randomness. The current demo rule has no interaction with the missing freighter or components and creates no branching outcome. GDScript source was parser-checked when saved through the connected editor tool. A runtime smoke check confirmed T changes the reserve from 6.0 to 5.0 days and updates the event display; no automated gameplay test suite was run.
 
 ### Responsibilities
 
@@ -75,7 +90,7 @@ A state-changing action should follow this shape:
 
 A simulation step should be reproducible from known starting state, seed, configuration, and ordered commands. Keep randomness explicit and seeded. Tests should cover normal transitions, boundaries, invalid commands, and repeated runs; character knowledge tests should prove one NPC cannot retrieve another's private data. UI smoke tests complement domain tests; they do not substitute for them.
 
-No project-owned automated gameplay test suite or simulation tests exist yet. The earlier editor smoke check only confirmed movement and one Mara interaction in the temporary 2D scene. It did not verify all source locations, a 3D scene, or any simulation behavior.
+No project-owned automated gameplay test suite exists yet. The earlier smoke check covered movement and one Mara interaction. The latest smoke check confirmed one T press advances the reserve and displays an event. Neither check verifies all source locations, a 3D scene, or the eventual settlement rules.
 
 ## Integration and local-only model constraints
 

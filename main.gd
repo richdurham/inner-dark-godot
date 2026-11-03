@@ -81,13 +81,19 @@ var interaction_hint: Label
 var objective_title: Label
 var objective_body: Label
 var progress_label: Label
+var simulation: CeresRunSimulation
+var reserve_status_label: Label
+var tick_status_label: Label
+var event_status_label: Label
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for source in SOURCES:
 		reviewed_sources[source["id"]] = false
+	simulation = CeresRunSimulation.new()
 	_build_overlay()
+	_update_simulation_display()
 	_update_objective()
 	_refresh_nearby_source()
 	queue_redraw()
@@ -98,6 +104,8 @@ func _process(delta: float) -> void:
 		_interact()
 	if Input.is_action_just_pressed("restart_briefing"):
 		_restart_slice()
+	if Input.is_action_just_pressed("advance_day"):
+		_advance_simulation()
 
 	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if direction.length_squared() > 0.0:
@@ -219,13 +227,20 @@ func _build_overlay() -> void:
 	header.add_child(spacer)
 
 	var status_card := PanelContainer.new()
+	status_card.custom_minimum_size = Vector2(300, 0)
 	status_card.add_theme_stylebox_override("panel", _panel_style("panel", 8, 12))
 	header.add_child(status_card)
 	var status := VBoxContainer.new()
 	status.add_theme_constant_override("separation", 2)
 	status_card.add_child(status)
-	status.add_child(_label("COLONY WATER SUPPLY", 10, "quiet"))
-	status.add_child(_label("RESERVES BELOW ONE WEEK", 12, "warning"))
+	status.add_child(_label("SIMULATION TEST  /  TEMPORARY RULES", 10, "accent"))
+	reserve_status_label = _label("", 12, "warning")
+	status.add_child(reserve_status_label)
+	tick_status_label = _label("", 10, "muted")
+	status.add_child(tick_status_label)
+	event_status_label = _label("", 10, "quiet")
+	event_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status.add_child(event_status_label)
 
 	var vertical_spacer := Control.new()
 	vertical_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -271,7 +286,7 @@ func _build_overlay() -> void:
 	objective_stack.add_child(objective_body)
 	progress_label = _label("", 11, "warning")
 	objective_stack.add_child(progress_label)
-	var controls := _label("WASD / ARROWS  MOVE     E  INTERACT     R  RESTART", 9, "muted")
+	var controls := _label("WASD / ARROWS MOVE   E INTERACT   T ADVANCE DAY   R RESTART", 9, "muted")
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	objective_stack.add_child(controls)
 
@@ -299,6 +314,22 @@ func _panel_style(background: String, radius: int, inset: int) -> StyleBoxFlat:
 
 func _color(key: String) -> Color:
 	return Color(COLORS[key])
+
+
+func _advance_simulation() -> void:
+	var result := simulation.advance_day()
+	if result.accepted:
+		_update_simulation_display()
+
+
+func _update_simulation_display() -> void:
+	reserve_status_label.text = "WATER RESERVE: %.1f DAYS" % simulation.reserve_days()
+	tick_status_label.text = "DAY %d  /  T ADVANCES ONE DAY" % simulation.tick_index()
+	if simulation.latest_event == null:
+		event_status_label.text = "LAST EVENT: NONE"
+	else:
+		var event: SimulationEvent = simulation.latest_event
+		event_status_label.text = "EVENT %d  /  %s" % [event.sequence, event.summary]
 
 
 func _move_player(movement: Vector2) -> void:
@@ -381,6 +412,8 @@ func _update_objective() -> void:
 
 
 func _restart_slice() -> void:
+	simulation.reset()
+	_update_simulation_display()
 	player_position = PLAYER_START
 	facing = Vector2.UP
 	nearby_source = {}
