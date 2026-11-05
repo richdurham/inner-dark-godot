@@ -49,6 +49,28 @@ const SOURCES := [
 	}
 ]
 
+const CASE_EVIDENCE_BY_SOURCE := {
+	"board": [
+		{"id": &"freighter_missing", "claim": "The commercial freighter carrying water-treatment components is missing.", "confidence": EvidenceRecord.VERIFIED},
+		{"id": &"reserve_shortage", "claim": "Ceres reserves are below one week.", "confidence": EvidenceRecord.VERIFIED},
+		{"id": &"off_schedule_transfers", "claim": "Cargo transfers occurred outside the normal manifest schedule.", "confidence": EvidenceRecord.VERIFIED},
+		{"id": &"unverified_responsibility", "claim": "Responsibility for the freighter is not verified.", "confidence": EvidenceRecord.UNRESOLVED}
+	],
+	"mara": [
+		{"id": &"freighter_missing", "claim": "The commercial freighter carrying water-treatment components is missing.", "confidence": EvidenceRecord.VERIFIED},
+		{"id": &"reserve_shortage", "claim": "Ceres reserves are below one week.", "confidence": EvidenceRecord.VERIFIED}
+	],
+	"ilyan": [
+		{"id": &"off_schedule_transfers", "claim": "Cargo transfers occurred outside the normal manifest schedule.", "confidence": EvidenceRecord.VERIFIED},
+		{"id": &"unnamed_rumors", "claim": "Ilyan reports rumors but offers no substantiated accusation.", "confidence": EvidenceRecord.RUMOR},
+		{"id": &"ilyan_does_not_know", "claim": "Ilyan does not know who took the freighter.", "confidence": EvidenceRecord.UNRESOLVED}
+	],
+	"sato": [
+		{"id": &"cargo_investigation", "claim": "Irregular cargo is under investigation.", "confidence": EvidenceRecord.VERIFIED},
+		{"id": &"unverified_responsibility", "claim": "Responsibility for the freighter is not verified.", "confidence": EvidenceRecord.UNRESOLVED}
+	]
+}
+
 const COLORS := {
 	"background": "#080c13",
 	"floor": "#0d151f",
@@ -77,14 +99,21 @@ var complete := false
 var dialogue_title: Label
 var dialogue_role: Label
 var dialogue_body: Label
+var dialogue_panel: PanelContainer
 var interaction_hint: Label
 var objective_title: Label
 var objective_body: Label
 var progress_label: Label
 var simulation: CeresRunSimulation
+var evidence_ledger: EvidenceLedger
+var save_store: CeresSaveStore
 var reserve_status_label: Label
 var tick_status_label: Label
+var rationing_status_label: Label
+var treatment_status_label: Label
+var unmet_status_label: Label
 var event_status_label: Label
+var simulation_feedback: String = ""
 
 
 func _ready() -> void:
@@ -92,7 +121,18 @@ func _ready() -> void:
 	for source in SOURCES:
 		reviewed_sources[source["id"]] = false
 	simulation = CeresRunSimulation.new()
+	evidence_ledger = EvidenceLedger.new()
+	save_store = CeresSaveStore.new()
 	_build_overlay()
+	if not simulation.is_ready():
+		push_error(simulation.model_error)
+		dialogue_title.text = "Simulation model unavailable"
+		dialogue_role.text = "MECHFLOW MODEL LOAD ERROR"
+		dialogue_body.text = simulation.model_error
+		interaction_hint.text = "Start the Mechflow workspace and relaunch the game."
+		simulation_feedback = "MODEL LOAD FAILED"
+		_update_simulation_display()
+		return
 	_update_simulation_display()
 	_update_objective()
 	_refresh_nearby_source()
@@ -100,12 +140,24 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if not simulation.is_ready():
+		return
 	if Input.is_action_just_pressed("interact"):
 		_interact()
 	if Input.is_action_just_pressed("restart_briefing"):
 		_restart_slice()
 	if Input.is_action_just_pressed("advance_day"):
 		_advance_simulation()
+	if Input.is_action_just_pressed("toggle_rationing"):
+		_toggle_rationing()
+	if Input.is_action_just_pressed("repair_treatment"):
+		_repair_treatment()
+	if Input.is_action_just_pressed("view_case_file"):
+		_toggle_case_file()
+	if Input.is_action_just_pressed("save_game"):
+		_save_game()
+	if Input.is_action_just_pressed("load_game"):
+		_load_game()
 
 	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if direction.length_squared() > 0.0:
@@ -238,6 +290,12 @@ func _build_overlay() -> void:
 	status.add_child(reserve_status_label)
 	tick_status_label = _label("", 10, "muted")
 	status.add_child(tick_status_label)
+	rationing_status_label = _label("", 10, "muted")
+	status.add_child(rationing_status_label)
+	treatment_status_label = _label("", 10, "muted")
+	status.add_child(treatment_status_label)
+	unmet_status_label = _label("", 10, "warning")
+	status.add_child(unmet_status_label)
 	event_status_label = _label("", 10, "quiet")
 	event_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status.add_child(event_status_label)
@@ -250,7 +308,7 @@ func _build_overlay() -> void:
 	footer.add_theme_constant_override("separation", 14)
 	page.add_child(footer)
 
-	var dialogue_panel := PanelContainer.new()
+	dialogue_panel = PanelContainer.new()
 	dialogue_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	dialogue_panel.custom_minimum_size = Vector2(0, 154)
 	dialogue_panel.add_theme_stylebox_override("panel", _panel_style("panel", 9, 16))
@@ -286,7 +344,7 @@ func _build_overlay() -> void:
 	objective_stack.add_child(objective_body)
 	progress_label = _label("", 11, "warning")
 	objective_stack.add_child(progress_label)
-	var controls := _label("WASD / ARROWS MOVE   E INTERACT   T ADVANCE DAY   R RESTART", 9, "muted")
+	var controls := _label("WASD / ARROWS MOVE   E INSPECT   J CASE FILE   T DAY   C RATION   B REPAIR   K SAVE   L LOAD   R RESET", 9, "muted")
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	objective_stack.add_child(controls)
 
@@ -319,17 +377,168 @@ func _color(key: String) -> Color:
 func _advance_simulation() -> void:
 	var result := simulation.advance_day()
 	if result.accepted:
+		simulation_feedback = ""
+		_update_simulation_display()
+	else:
+		simulation_feedback = "ACTION REJECTED  /  %s" % String(result.reason).replace("_", " ")
 		_update_simulation_display()
 
 
-func _update_simulation_display() -> void:
-	reserve_status_label.text = "WATER RESERVE: %.1f DAYS" % simulation.reserve_days()
-	tick_status_label.text = "DAY %d  /  T ADVANCES ONE DAY" % simulation.tick_index()
-	if simulation.latest_event == null:
-		event_status_label.text = "LAST EVENT: NONE"
+func _toggle_rationing() -> void:
+	var result := simulation.set_rationing_enabled(not simulation.rationing_enabled)
+	if result.accepted:
+		simulation_feedback = ""
+		_update_simulation_display()
 	else:
-		var event: SimulationEvent = simulation.latest_event
-		event_status_label.text = "EVENT %d  /  %s" % [event.sequence, event.summary]
+		simulation_feedback = "ACTION REJECTED  /  %s" % String(result.reason).replace("_", " ")
+		_update_simulation_display()
+
+
+func _repair_treatment() -> void:
+	var result := simulation.repair_treatment()
+	if result.accepted:
+		simulation_feedback = ""
+		_update_simulation_display()
+	else:
+		simulation_feedback = "ACTION REJECTED  /  %s" % String(result.reason).replace("_", " ")
+		_update_simulation_display()
+
+
+func _save_game() -> void:
+	var result := save_store.write_save({
+		"simulation": simulation.to_dictionary(),
+		"model_source_sha256": simulation.model_source_sha256,
+		"evidence": evidence_ledger.to_dictionary(),
+		"reviewed_sources": reviewed_sources.duplicate(true)
+	})
+	if result["ok"]:
+		simulation_feedback = "SAVED  /  %s" % result["path"]
+	else:
+		simulation_feedback = "SAVE FAILED  /  %s" % String(result["reason"]).replace("_", " ")
+	_update_simulation_display()
+
+
+func _load_game() -> void:
+	var result := save_store.read_save()
+	if not result["ok"]:
+		simulation_feedback = "LOAD FAILED  /  %s" % String(result["reason"]).replace("_", " ")
+		_update_simulation_display()
+		return
+
+	var payload: Dictionary = result["payload"]
+	var saved_model_hash: Variant = payload.get("model_source_sha256")
+	var is_legacy_save := saved_model_hash == null
+	if not is_legacy_save and (typeof(saved_model_hash) != TYPE_STRING or saved_model_hash != simulation.model_source_sha256):
+		simulation_feedback = "LOAD FAILED / SIMULATION MODEL HAS CHANGED"
+		_update_simulation_display()
+		return
+	var restored_simulation := CeresRunSimulation.new()
+	if not restored_simulation.restore_from_dictionary(payload.get("simulation")):
+		simulation_feedback = "LOAD FAILED  /  INVALID SIMULATION STATE"
+		_update_simulation_display()
+		return
+	var restored_evidence := EvidenceLedger.new()
+	if not restored_evidence.restore_from_dictionary(payload.get("evidence"), restored_simulation.tick_index()):
+		simulation_feedback = "LOAD FAILED  /  INVALID CASE FILE"
+		_update_simulation_display()
+		return
+	if not _evidence_sources_are_valid(restored_evidence):
+		simulation_feedback = "LOAD FAILED  /  CASE FILE SOURCE MISMATCH"
+		_update_simulation_display()
+		return
+	var restored_reviewed: Variant = payload.get("reviewed_sources")
+	if not _reviewed_sources_are_valid(restored_reviewed, restored_evidence):
+		simulation_feedback = "LOAD FAILED  /  INVALID SOURCE PROGRESS"
+		_update_simulation_display()
+		return
+
+	simulation = restored_simulation
+	evidence_ledger = restored_evidence
+	reviewed_sources = Dictionary(restored_reviewed)
+	simulation_feedback = "LOAD COMPLETE / LEGACY MODEL UNVERIFIED" if is_legacy_save else "LOAD COMPLETE"
+	dialogue_panel.custom_minimum_size.y = 154
+	dialogue_title.text = "Crisis board"
+	dialogue_role.text = "PUBLIC CRISIS FACTS"
+	dialogue_body.text = _crisis_board_report()
+	_update_simulation_display()
+	_update_objective()
+
+
+func _evidence_sources_are_valid(ledger: EvidenceLedger) -> bool:
+	for record in ledger.get_records():
+		for observation in record.observations:
+			var source_id := String(observation["source_id"])
+			if not CASE_EVIDENCE_BY_SOURCE.has(source_id):
+				return false
+			var matched := false
+			for expected in CASE_EVIDENCE_BY_SOURCE[source_id]:
+				var matches_record: bool = (
+					expected["id"] == record.evidence_id
+					and expected["claim"] == record.claim
+					and expected["confidence"] == record.confidence
+				)
+				if matches_record:
+					matched = true
+					break
+			if not matched:
+				return false
+	return true
+
+
+func _reviewed_sources_are_valid(saved_reviewed: Variant, ledger: EvidenceLedger) -> bool:
+	if typeof(saved_reviewed) != TYPE_DICTIONARY or saved_reviewed.size() != SOURCES.size():
+		return false
+	for source in SOURCES:
+		var source_id: String = source["id"]
+		if not saved_reviewed.has(source_id) or typeof(saved_reviewed[source_id]) != TYPE_BOOL:
+			return false
+		var has_evidence := false
+		for record in ledger.get_records():
+			if record.source_ids().has(StringName(source_id)):
+				has_evidence = true
+				break
+		if saved_reviewed[source_id] != has_evidence:
+			return false
+	return true
+
+
+func _update_simulation_display() -> void:
+	var reserve_projection := simulation.projected_days_until_empty()
+	var projection_text := "STABLE" if reserve_projection < 0.0 else "EMPTY IN %.1f DAYS" % reserve_projection
+	reserve_status_label.text = "WATER: %.1f DAYS  /  %s" % [simulation.reserve_days(), projection_text]
+	tick_status_label.text = "DAY %d  /  T ADVANCES ONE DAY" % simulation.tick_index()
+	var mode := "RATIONING" if simulation.rationing_enabled else "NORMAL USE"
+	rationing_status_label.text = "POLICY: %s  /  DEMAND %.2f DAYS PER DAY  /  C TOGGLE" % [mode, simulation.daily_water_demand()]
+	var treatment_status := "ONLINE +%.2f/DAY" % simulation.treatment_output_per_tick() if simulation.treatment_repaired else "OFFLINE"
+	treatment_status_label.text = "TREATMENT: %s  /  PARTS %.0f  /  B REPAIR" % [treatment_status, simulation.treatment_parts()]
+	unmet_status_label.text = "CUMULATIVE UNMET DEMAND: %.2f DAYS" % simulation.unmet_water_days()
+	if not simulation_feedback.is_empty():
+		event_status_label.text = simulation_feedback
+	else:
+		event_status_label.text = _recent_simulation_events()
+
+
+func _recent_simulation_events() -> String:
+	var events := simulation.state.get_events()
+	var recent: Array[Dictionary] = []
+	for event_data in events:
+		var event_type: String = event_data["event_type"]
+		if not ["rationing_changed", "treatment_repaired", "daily_water_balance", "water_shortage"].has(event_type):
+			continue
+		recent.append(event_data)
+		if recent.size() > 3:
+			recent.pop_front()
+
+	if recent.is_empty():
+		return "NO SIMULATION EVENTS YET"
+
+	var lines: Array[String] = []
+	for event_data in recent:
+		var summary: String = event_data["summary"]
+		if summary.length() > 48:
+			summary = summary.substr(0, 45) + "..."
+		lines.append("D%d  %s" % [event_data["tick_index"], summary])
+	return "\n".join(PackedStringArray(lines))
 
 
 func _move_player(movement: Vector2) -> void:
@@ -382,6 +591,8 @@ func _refresh_nearby_source() -> void:
 
 
 func _interact() -> void:
+	dialogue_panel.visible = true
+	dialogue_panel.custom_minimum_size.y = 154
 	var source := _nearest_source()
 	if source.is_empty():
 		dialogue_title.text = "No source in reach"
@@ -391,9 +602,99 @@ func _interact() -> void:
 
 	dialogue_title.text = source["name"]
 	dialogue_role.text = source["role"]
-	dialogue_body.text = source["dialogue"]
+	dialogue_body.text = _dialogue_for_source(source)
+	_record_evidence_from_source(source["id"])
 	reviewed_sources[source["id"]] = true
 	_update_objective()
+
+
+func _toggle_case_file() -> void:
+	if dialogue_panel.visible and dialogue_title.text == "Case file":
+		dialogue_panel.visible = false
+		interaction_hint.text = "E  /  %s" % nearby_source.get("name", "Walk to a marked source and press E to inspect or speak.")
+		return
+	dialogue_panel.visible = true
+	dialogue_panel.custom_minimum_size.y = 260
+	dialogue_title.text = "Case file"
+	dialogue_role.text = "PLAYER-RECORDED CLAIMS / SOURCE ATTRIBUTION"
+	dialogue_body.text = _format_case_file()
+	interaction_hint.text = "J  /  CLOSE CASE FILE   E  /  SPEAK TO NEAREST SOURCE"
+
+
+func _record_evidence_from_source(source_id: String) -> void:
+	var source_evidence: Array = CASE_EVIDENCE_BY_SOURCE.get(source_id, [])
+	for entry in source_evidence:
+		evidence_ledger.add_claim(
+			entry["id"],
+			entry["claim"],
+			StringName(source_id),
+			entry["confidence"],
+			simulation.tick_index()
+		)
+
+
+func _format_case_file() -> String:
+	var records := evidence_ledger.get_records()
+	if records.is_empty():
+		return "No claims recorded yet. Inspect the crisis board or speak with the colony staff to add sourced notes."
+
+	var sections: Array[String] = []
+	for confidence in [EvidenceRecord.VERIFIED, EvidenceRecord.RUMOR, EvidenceRecord.UNRESOLVED]:
+		var claims: Array[String] = []
+		for record in records:
+			if record.confidence != confidence:
+				continue
+			var source_names: Array[String] = []
+			for observation in record.observations:
+				var source_id: StringName = observation["source_id"]
+				var source_label := _source_name(source_id)
+				var observed_tick: int = observation["tick_index"]
+				source_names.append("%s D%d" % [source_label, observed_tick])
+			claims.append("%s (%s)" % [record.claim, ", ".join(PackedStringArray(source_names))])
+		if claims.is_empty():
+			continue
+		sections.append("%s\n- %s" % [String(confidence).to_upper(), "\n- ".join(PackedStringArray(claims))])
+	return "\n\n".join(PackedStringArray(sections))
+
+
+func _source_name(source_id: StringName) -> String:
+	for source in SOURCES:
+		if StringName(source["id"]) == source_id:
+			return source["name"]
+	return String(source_id)
+
+
+func _dialogue_for_source(source: Dictionary) -> String:
+	var source_id: String = source["id"]
+	if source_id == "board":
+		return _crisis_board_report()
+	if simulation.unmet_water_days() <= 0.0:
+		return source["dialogue"]
+
+	if source_id == "mara":
+		return "The allocation schedule has fallen short. Current reserves are %.1f days, with %.2f reserve-days of demand unserved in total. The freighter remains missing; I have no verified cause to give you." % [simulation.reserve_days(), simulation.unmet_water_days()]
+	if source_id == "sato":
+		return "I have recorded %.2f reserve-days of unserved water demand. That verifies a shortage, not who took the freighter. No verified evidence identifies the perpetrator." % simulation.unmet_water_days()
+	return source["dialogue"]
+
+
+func _crisis_board_report() -> String:
+	var reserve_projection := simulation.projected_days_until_empty()
+	var projection_text := "stable at current rates" if reserve_projection < 0.0 else "%.1f days at current rates" % reserve_projection
+	var treatment_text := "online" if simulation.treatment_repaired else "offline"
+	var latest_event_text := "No simulation events yet."
+	if simulation.latest_event != null:
+		latest_event_text = simulation.latest_event.summary
+		if latest_event_text.length() > 72:
+			latest_event_text = latest_event_text.substr(0, 69) + "..."
+	return "WATER %.1f DAYS | DEMAND %.2f/DAY | TREATMENT %s\nPROJECTED EMPTY: %s | UNSERVED TOTAL: %.2f RESERVE-DAYS\nLATEST EVENT: %s\nFREIGHTER MISSING (TREATMENT PARTS); OFF-SCHEDULE TRANSFERS; CULPRIT UNVERIFIED." % [
+		simulation.reserve_days(),
+		simulation.daily_water_demand(),
+		treatment_text,
+		projection_text,
+		simulation.unmet_water_days(),
+		latest_event_text
+	]
 
 
 func _update_objective() -> void:
@@ -413,6 +714,9 @@ func _update_objective() -> void:
 
 func _restart_slice() -> void:
 	simulation.reset()
+	evidence_ledger.clear()
+	dialogue_panel.custom_minimum_size.y = 154
+	simulation_feedback = ""
 	_update_simulation_display()
 	player_position = PLAYER_START
 	facing = Vector2.UP

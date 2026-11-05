@@ -13,21 +13,24 @@ The current Godot scene is only a temporary 2D interaction test. The user has re
 | Area | Status | Evidence / boundary |
 |---|---|---|
 | Godot shell | Exists | One main scene and one attached GDScript. |
-| Temporary interaction test | Exists | Movement, source proximity, authored text, progress counter, restart. It is presentation-only. |
+| Temporary interaction test | Exists | Movement, source proximity, authored text, progress counter, restart; now displays simulation-dependent public and character information. |
 | 3D wireframe direction | Unverified here | Mentioned by the user; source brief/reference must be recovered before implementing it. |
-| Typed world model and simulation tick | Partial foundation | Typed stock/state/result/event/engine scripts exist; a generic tick and stock adjustment are visible through T in the scene. No approved settlement rules, persistence, or automated tests yet. |
-| Event history and save/load | Partial / not implemented | Events are retained in memory for the running demo; there is no durable event log or save/load. |
-| Travel, work, economy, validated choices | Not implemented | Planned; the current reserve demo has no player choice or settlement economy. |
+| Typed world model and simulation tick | Partial foundation | Typed stock/state/result/event/engine scripts now include descriptive world records, sourced relationships, event provenance/domain tags, and a monotonic world-time counter. A verifier checks untrusted semantic candidate IDs against current visible records and active ties. T advances the visible demo; C toggles rationing, and B spends a treatment component on repair. These generic contracts are not connected to NPC/social/political autonomy or embeddings yet; the rules are placeholders and automated tests are still needed. |
+| Event history and save/load | Partial | Full events remain in memory; K/L write and restore a versioned local JSON snapshot containing simulation state, event history, evidence, and reviewed-source progress. No autosave or migration between versions yet. |
+| Travel, economy, story choices | Not implemented | Planned; the current demo has two resource interventions but no settlement economy, narrative branches, or travel. |
 | Python narrative subsystem | Exists separately | Standalone local prototype; current user confirmed its stub-mode plumbing test completed. |
 | Godot/Python integration | Not implemented | Draft contract only; defer until game-side behavior is authoritative and independently playable. |
 
 ## Phase 1 status after initial foundation work
 
-The generic contracts exist in `simulation/resource_stock.gd`, `simulation/simulation_state.gd`, `simulation/simulation_event.gd`, `simulation/simulation_result.gd`, and `simulation/simulation_engine.gd`. `simulation/ceres_run_simulation.gd` currently demonstrates the connection: T advances the tick and consumes one reserve-day from a 6.0-day starting value. Both values are temporary demo assumptions, not established Ceres facts. The UI shows the current reserve, day, and latest event. Phase 1 remains in progress: automated state/action tests, a save direction, and actual Ceres rules are still needed. Phase 2 is only a visible demonstration, not a settlement simulation.
+The generic contracts exist in `simulation/resource_stock.gd`, `simulation/simulation_state.gd`, `simulation/simulation_event.gd`, `simulation/simulation_result.gd`, and `simulation/simulation_engine.gd`. `simulation/ceres_run_simulation.gd` connects them to the scene: T advances the tick; C changes water demand; B spends a spare component to restore treatment; unmet demand accumulates and each tick records a full water-balance event. Starting stocks and all rates are temporary demo assumptions, not established Ceres facts. The UI shows reserve, projected runout, day, policy, treatment status/parts, unmet demand, recent events, and the sourced case file. Phase 1 remains in progress: automated state/action tests and a design agreement on the actual Ceres rules are still needed. The save format currently has version 1 but no migration between versions. Phase 2 demonstrates interacting interventions, but it does not yet model an approved treatment system or settlement economy.
+
+The connected scene now also records source-attributed claims in a case file. It groups verified statements, rumors, and unresolved claims and retains the source/tick observations; K/L save and restore it with the simulation. This is bounded evidence plumbing, not a culprit solution or a story branch.
 
 ## Working principles
 
 - **Prove simulation before scale.** Start with one settlement, a few typed resources, a small number of actors, and explicit transitions.
+- **Store broadly; resolve selectively.** Keep identities and authoritative records for the world, but do not continuously update every NPC, location, or process. Resolve detailed behavior at the active scale and relevant adjacent context; catch inactive state up on demand from its last resolved time with aggregate rules and ordered consequential events. The shared timeline provides continuity, not a visible metronome.
 - **Keep outcomes legible.** A tick or action should expose what changed and why.
 - **Separate evidence from truth.** Keep rumor, report, inference, and verified event distinct.
 - **Keep AI optional and non-authoritative.** A missing model cannot block the core slice.
@@ -61,14 +64,39 @@ The generic contracts exist in `simulation/resource_stock.gd`, `simulation/simul
 
 **Exit gate:** given the same initial state and ordered inputs, the model produces the same state and event sequence. A UI can inspect the result without owning the rule logic.
 
-### Phase 2 — Minimal simulation loop
+### Phase 1.5 — Agree on the Ceres simulation model
 
-**Purpose:** prove a changing world and one validated player intervention.
+**Purpose:** decide what the underlying simulation represents before expanding or tuning the current demonstration rules. The values in `CeresRunSimulation` are scaffolding and do not constitute that model.
 
 **Deliverables:**
-- Model a single Ceres settlement with explicit water and water-treatment-component stocks or capacity values. Define units and safe bounds before coding.
+- Record the player-facing pressures and choices the Ceres slice needs to support.
+- Choose the smallest useful model boundary: local stocks needed to resolve actions, rates and capacities that drive settlement strain, any aggregate needs, and the time step. Do not turn the player into a colony manager or expose colony-wide inventory merely because the model uses stocks internally.
+- Use one world clock with coarser update cadence at larger spatial/social scales; define how inactive locations catch up without simulating every local day and every NPC.
+- Keep the player-facing view centered on the current simulation scale and at most its adjacent scale; summarize lower-level activity when it is not directly relevant.
+- Define an NPC-owned concern that advances or changes without player input, including what blocks it, what happens if ignored, and how the player can discover or influence it.
+- Keep a persistent NPC roster, but simulate individuals in detail only when active or relevant; derive routine community capability from skills, availability, tools, and parts.
+- Represent only the social ties needed to route information, trust, access, obligations, and collective coordination; preserve relevant individual ties with provenance and aggregate the rest.
+- Define how simulation-derived condition tags and earned capability or relationship tags gate conversations and missions while leaving state changes to validated simulation actions.
+- Review the treatment-repair worked case in [the Ceres proposal](ceres-simulation-proposal.md): autonomous/background behavior, player contributions, cross-domain event record, semantic candidate formation, and stale/invalid options.
+- Keep the broader political substrate documented in [political-ecosystem-model.md](political-ecosystem-model.md); only add a collective-action case to the first slice once its player-facing issue and outcomes are chosen.
+- Where politics affects the chosen case, specify how ownership, access, policy, or collective action changes actual resource transactions and flows; do not model economic and political state as disconnected meters.
+- Specify update order, constraints, action costs, delays, and observable consequences.
+- Define a small set of baseline and intervention scenarios that can later become deterministic checks.
+- Keep story facts and unknowns separate from simulation values; do not use the model to decide the freighter's culprit or motive.
+
+The questions and a decision-record template are in [simulation-model-design.md](simulation-model-design.md). This phase is a design gate, not a request to build a more realistic colony model.
+
+**Exit gate:** the user has reviewed the model boundary, units, transition rules, and example outcomes. Only then replace the current demo constants with agreed rules.
+
+### Phase 2 — Minimal simulation loop
+
+**Purpose:** implement the agreed Ceres model as a changing world and one validated player intervention. Until Phase 1.5 exits, the current placeholder loop is only an interaction and state-pipeline demo.
+
+**Deliverables:**
+- Model local treatment capacity and component/work-order quantities only as required for the situation. Derive settlement service strain from production and demand; do not expose a colony-wide water inventory as a management resource.
 - Add a deterministic scheduled change that can be advanced by one tick and has an inspectable explanation.
-- Add one player action that passes through game-side validation and produces typed state changes and an event.
+- Add an NPC-owned task that advances or stalls without the player, plus one player contribution that passes through game-side validation and produces typed state changes and a language-rich, provenance-linked event.
+- Form a storylet candidate by retrieving an event, existing NPC, and compatible object/resource; verify their links and choice preconditions against authoritative state before presentation.
 - Provide an inspection surface showing current state, action availability, and the latest event.
 - Cover success, insufficient-resource or denied-precondition cases, boundary values, and repeatability with tests.
 
@@ -137,4 +165,4 @@ Do not report a check as passed unless it was run. Avoid adding a broad test har
 
 ## Decisions intentionally left open
 
-Exact Ceres locations, culprit and motive, endings, career roster, route graph, tick duration/order, offline-time policy, economy model, ship detail, faction model, save/event schema, narrative transport, and final visual production direction. The 3D wireframe brief should resolve only visual requirements it actually specifies; it must not be treated as authorization to invent story canon.
+Exact Ceres locations, culprit and motive, endings, career roster, route graph, tick duration/order, offline-time policy, water and treatment model, economy model, ship detail, faction model, save/event schema, narrative transport, and final visual production direction. The 3D wireframe brief should resolve only visual requirements it actually specifies; it must not be treated as authorization to invent story canon.

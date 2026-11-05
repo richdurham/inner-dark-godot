@@ -1,0 +1,218 @@
+{
+  "format_version": 1,
+  "source_sha256": "015641c5fb4b01b97665aa7691b39fc0b75c27836b15c3b4e247c9968dae5d8c",
+  "model": {
+    "version": 1,
+    "name": "Ceres Water Loop - Demo Mapping",
+    "description": "Exploratory Mechflow representation of the current Godot water prototype. This is not approved colony design. Water is measured in quarter-reserve-day units so Mechflow's integer pools can represent the demo's 0.25 reserve-day treatment output.",
+    "properties": [],
+    "subsystems": [
+      {
+        "id": "water",
+        "name": "Water System",
+        "tier": "core"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "water_reserve_days",
+        "kind": "pool",
+        "name": "Water Reserve (quarter-days)",
+        "subsystem": "water",
+        "position": {
+          "x": 390,
+          "y": 340
+        },
+        "start": 24
+      },
+      {
+        "id": "treatment_parts",
+        "kind": "pool",
+        "name": "Spare Treatment Parts",
+        "subsystem": "water",
+        "position": {
+          "x": 90,
+          "y": 135
+        },
+        "start": 1
+      },
+      {
+        "id": "treatment_online",
+        "kind": "pool",
+        "name": "Treatment Online",
+        "subsystem": "water",
+        "position": {
+          "x": 570,
+          "y": 135
+        },
+        "capacity": 1,
+        "start": 0
+      },
+      {
+        "id": "unmet_water_days",
+        "kind": "pool",
+        "name": "Unmet Demand (quarter-days)",
+        "subsystem": "water",
+        "position": {
+          "x": 1010,
+          "y": 440
+        },
+        "start": 0
+      },
+      {
+        "id": "repair_treatment",
+        "kind": "converter",
+        "name": "B / Repair Treatment",
+        "subsystem": "water",
+        "position": {
+          "x": 325,
+          "y": 135
+        },
+        "inputs": [
+          {
+            "resource": "treatment_parts",
+            "amount": 1
+          }
+        ],
+        "outputs": [
+          {
+            "resource": "treatment_online",
+            "amount": 1
+          }
+        ],
+        "activation": "interactive"
+      },
+      {
+        "id": "daily_demand",
+        "kind": "register",
+        "name": "Daily Demand",
+        "subsystem": "water",
+        "position": {
+          "x": 815,
+          "y": 145
+        },
+        "formula": "normal_demand - (normal_demand - rationed_demand) * rationing_enabled"
+      },
+      {
+        "id": "treatment_production",
+        "kind": "source",
+        "name": "Treatment Production",
+        "subsystem": "water",
+        "position": {
+          "x": 730,
+          "y": 315
+        },
+        "rate": 0
+      },
+      {
+        "id": "unmet_demand_source",
+        "kind": "source",
+        "name": "Unserved Demand",
+        "subsystem": "water",
+        "position": {
+          "x": 810,
+          "y": 465
+        },
+        "rate": 0
+      },
+      {
+        "id": "daily_water_use",
+        "kind": "drain",
+        "name": "Daily Water Demand",
+        "subsystem": "water",
+        "position": {
+          "x": 520,
+          "y": 485
+        },
+        "rate": 0
+      }
+    ],
+    "edges": [
+      {
+        "id": "treatment_serves_shortage",
+        "kind": "flow",
+        "from": "treatment_production",
+        "to": "daily_water_use",
+        "label": "treatment output serves unmet daily demand",
+        "rate": "min(treatment_output * treatment_online, max(0, daily_demand - water_reserve_days))"
+      },
+      {
+        "id": "treatment_replenishes_reserve",
+        "kind": "flow",
+        "from": "treatment_production",
+        "to": "water_reserve_days",
+        "label": "treatment output remaining after demand",
+        "rate": "max(0, treatment_output * treatment_online - max(0, daily_demand - water_reserve_days))"
+      },
+      {
+        "id": "reserve_serves_demand",
+        "kind": "flow",
+        "from": "water_reserve_days",
+        "to": "daily_water_use",
+        "label": "reserve supplies daily demand",
+        "rate": "min(daily_demand, water_reserve_days)"
+      },
+      {
+        "id": "unmet_demand_accumulates",
+        "kind": "flow",
+        "from": "unmet_demand_source",
+        "to": "unmet_water_days",
+        "label": "demand not met by reserve or treatment",
+        "rate": "max(0, daily_demand - water_reserve_days - treatment_output * treatment_online)"
+      }
+    ],
+    "noInteraction": [],
+    "invariants": [
+      {
+        "id": "nonnegative_water_reserve",
+        "description": "Water reserve cannot fall below zero."
+      },
+      {
+        "id": "nonnegative_unmet_demand",
+        "description": "Accumulated unmet demand cannot fall below zero."
+      }
+    ],
+    "parameters": [
+      {
+        "id": "units_per_reserve_day",
+        "description": "Quarter-reserve-day units used by this integer-pool model.",
+        "value": 4,
+        "min": 4,
+        "max": 4,
+        "integer": true
+      },
+      {
+        "id": "normal_demand",
+        "description": "Demo demand in quarter-reserve-day units per day (1.0 reserve-day/day).",
+        "value": 4,
+        "min": 2,
+        "max": 8,
+        "integer": true
+      },
+      {
+        "id": "rationed_demand",
+        "description": "Demo rationed demand in quarter-reserve-day units per day (0.5 reserve-day/day).",
+        "value": 2,
+        "min": 1,
+        "max": 4,
+        "integer": true
+      },
+      {
+        "id": "rationing_enabled",
+        "description": "Exploratory policy switch, 0 for normal use and 1 for rationing.",
+        "value": 0,
+        "min": 0,
+        "max": 1,
+        "integer": true
+      },
+      {
+        "id": "treatment_output",
+        "description": "Demo treatment output in quarter-reserve-day units per day (0.25 reserve-day/day).",
+        "value": 1,
+        "min": 0,
+        "max": 2,
+        "integer": true
+      }
+    ]
+  }
+}

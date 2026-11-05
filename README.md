@@ -8,18 +8,24 @@ The Inner Dark is a grounded, character-centered science-fiction RPG set across 
 - [Project roadmap](docs/roadmap.md) — phased implementation plan, deliverables, status, and exit gates.
 - [Current architecture](docs/architecture.md) — what runs today, target dependency boundaries, authority, data, and integration rules.
 - [Ceres Run vertical slice](docs/ceres-run.md) — established crisis premise, character knowledge, scope, and acceptance checks.
+- [Ceres simulation model design](docs/simulation-model-design.md) — open decisions for the actual simulation; current Godot rates and values are placeholders.
+- [Mechflow workspace](docs/mechflow-workspace.md) — separate local economy visualizer, shared model location, and Godot compatibility plan.
 - [LLM handoff](docs/llm-handoff.md) — concise context and guardrails for another coding model.
 - [Python subsystem guide](https://github.com/richdurham/inner-dark-narrative/blob/main/docs/subsystem-guide.md) — implementation facts and limitations for the separate narrative prototype.
 
 ## Current Godot project state
 
-The opening scene is a temporary top-down 2D interaction test: move with WASD/arrow keys, approach the crisis board or one of three sources, press E to inspect/speak, and press R to restart. It demonstrates authored crisis information and basic interaction only. It is not the intended 3D wireframe brief or a simulation. The 3D reference/brief must be recovered before further visual implementation.
+The opening scene is a temporary top-down 2D interaction and simulation test: move with WASD/arrow keys, approach the crisis board or one of three sources, press E to inspect/speak, J to review sourced case notes, T to advance a day, C to toggle rationing, B to repair water treatment with a spare component, and R to restart. It is not the intended 3D wireframe brief. Recover that reference before further visual implementation. The water loop is also a plumbing demo; the underlying Ceres simulation model has not been agreed.
 
-A small simulation foundation now exists in `simulation/`: typed stock values and state, tick advancement, validated stock changes, and inspectable events. The scene is connected to a temporary water-reserve demo: press T to advance a day. Its 6.0-day starting reserve and one reserve-day consumed per advance are placeholders, not established game facts. The display demonstrates a state transition, not a finished settlement economy. Persistence, production/consumption rules, travel, validated story choices, storylets, local model runtime, and Godot-to-Python integration are not implemented. The Python narrative prototype runs independently.
+A small simulation foundation now exists in `simulation/`: typed stocks and state, tick advancement, validated stock changes, and inspectable events. The scene is connected to a temporary water-reserve loop: T advances a day; C toggles rationing, changing demand from 1.0 to 0.5 reserve-days per tick; B spends one spare component to restore treatment, adding 0.25 reserve-days before each day's demand is served. If supply falls short, unmet demand accumulates and the daily event records a shortage and full water balance. Starting stocks and rates are demonstration placeholders, not established game facts. Production schedules, broader treatment capacity, travel, story choices, storylets, local model runtime, and Godot-to-Python integration are not implemented. The Python narrative prototype runs independently.
 
 ## Running the scene
 
-Open this project in Godot and run the main scene (F5). The temporary test uses WASD/arrow keys, E to interact, T to advance the demo simulation, and R to restart.
+Open this project in Godot and run the main scene (F5). Use WASD/arrow keys to move, E to inspect a source, J to open the case file, T to advance one day, C to toggle rationing, B to repair treatment, K to save, L to load, and R to restart.
+
+## Mechflow economy workspace
+
+Start the separate visualizer with `./tools/run_mechflow.sh` and open `http://127.0.0.1:3000`. It edits the canonical model under `simulation/models/`; Godot loads the automatically generated runtime data from that same file. Restart the game after changing the model. Run `node tools/check_mechflow_parity.mjs` to compare normal, rationed, and repaired balances. See [the Mechflow workspace guide](docs/mechflow-workspace.md) for the adapter contract and current demo limits.
 
 ## Project constraints
 

@@ -1,0 +1,135 @@
+version: 1
+name: "Ceres Water Loop - Demo Mapping"
+description: >-
+  Exploratory Mechflow representation of the current Godot water prototype. This is not approved
+  colony design. Water is measured in quarter-reserve-day units so Mechflow's integer pools can
+  represent the demo's 0.25 reserve-day treatment output.
+properties: []
+subsystems:
+  - id: water
+    name: Water System
+    tier: core
+parameters:
+  - id: units_per_reserve_day
+    description: Quarter-reserve-day units used by this integer-pool model.
+    value: 4
+    min: 4
+    max: 4
+    integer: true
+  - id: normal_demand
+    description: Demo demand in quarter-reserve-day units per day (1.0 reserve-day/day).
+    value: 4
+    min: 2
+    max: 8
+    integer: true
+  - id: rationed_demand
+    description: Demo rationed demand in quarter-reserve-day units per day (0.5 reserve-day/day).
+    value: 2
+    min: 1
+    max: 4
+    integer: true
+  - id: rationing_enabled
+    description: Exploratory policy switch, 0 for normal use and 1 for rationing.
+    value: 0
+    min: 0
+    max: 1
+    integer: true
+  - id: treatment_output
+    description: Demo treatment output in quarter-reserve-day units per day (0.25 reserve-day/day).
+    value: 1
+    min: 0
+    max: 2
+    integer: true
+nodes:
+  - id: water_reserve_days
+    kind: pool
+    position: { x: 390, y: 340 }
+    name: Water Reserve (quarter-days)
+    subsystem: water
+    start: 24
+  - id: treatment_parts
+    kind: pool
+    position: { x: 90, y: 135 }
+    name: Spare Treatment Parts
+    subsystem: water
+    start: 1
+  - id: treatment_online
+    kind: pool
+    position: { x: 570, y: 135 }
+    name: Treatment Online
+    subsystem: water
+    start: 0
+    capacity: 1
+  - id: unmet_water_days
+    kind: pool
+    position: { x: 1010, y: 440 }
+    name: Unmet Demand (quarter-days)
+    subsystem: water
+    start: 0
+  - id: repair_treatment
+    kind: converter
+    position: { x: 325, y: 135 }
+    name: B / Repair Treatment
+    subsystem: water
+    activation: interactive
+    inputs:
+      - resource: treatment_parts
+        amount: 1
+    outputs:
+      - resource: treatment_online
+        amount: 1
+  - id: daily_demand
+    kind: register
+    position: { x: 815, y: 145 }
+    name: Daily Demand
+    subsystem: water
+    formula: "normal_demand - (normal_demand - rationed_demand) * rationing_enabled"
+  - id: treatment_production
+    kind: source
+    position: { x: 730, y: 315 }
+    name: Treatment Production
+    subsystem: water
+    rate: 0
+  - id: unmet_demand_source
+    kind: source
+    position: { x: 810, y: 465 }
+    name: Unserved Demand
+    subsystem: water
+    rate: 0
+  - id: daily_water_use
+    kind: drain
+    position: { x: 520, y: 485 }
+    name: Daily Water Demand
+    subsystem: water
+    rate: 0
+edges:
+  - id: treatment_serves_shortage
+    kind: flow
+    from: treatment_production
+    to: daily_water_use
+    label: treatment output serves unmet daily demand
+    rate: "min(treatment_output * treatment_online, max(0, daily_demand - water_reserve_days))"
+  - id: treatment_replenishes_reserve
+    kind: flow
+    from: treatment_production
+    to: water_reserve_days
+    label: treatment output remaining after demand
+    rate: "max(0, treatment_output * treatment_online - max(0, daily_demand - water_reserve_days))"
+  - id: reserve_serves_demand
+    kind: flow
+    from: water_reserve_days
+    to: daily_water_use
+    label: reserve supplies daily demand
+    rate: "min(daily_demand, water_reserve_days)"
+  - id: unmet_demand_accumulates
+    kind: flow
+    from: unmet_demand_source
+    to: unmet_water_days
+    label: demand not met by reserve or treatment
+    rate: "max(0, daily_demand - water_reserve_days - treatment_output * treatment_online)"
+noInteraction: []
+invariants:
+  - id: nonnegative_water_reserve
+    description: Water reserve cannot fall below zero.
+  - id: nonnegative_unmet_demand
+    description: Accumulated unmet demand cannot fall below zero.

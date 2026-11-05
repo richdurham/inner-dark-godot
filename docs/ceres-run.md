@@ -14,6 +14,20 @@ A Ceres colony faces a water shortage. Its commercial freighter carrying water-t
 
 These facts mirror the narrative prototype profiles. Authored profiles and source events are the truth; private memories do not cross characters by default.
 
+## Current Godot demo rules (temporary, not canon)
+
+The scene currently uses deliberately simple placeholder values to exercise a player-facing simulation loop:
+
+- Start with 6.0 water-reserve days and one spare treatment component.
+- T advances one simulated day.
+- C switches daily demand between normal use (1.0 reserve-day) and rationing (0.5 reserve-day).
+- B consumes the spare component once to repair treatment. The repaired system adds 0.25 reserve-days before each day's demand is served.
+- Every tick records opening reserve, treatment output, demand, served and unmet amounts, closing reserve, and active policy in one `daily_water_balance` or `water_shortage` event. If available water cannot meet demand, the missing amount accumulates. Time continues advancing after the reserve reaches zero.
+- The HUD reports reserve, projected runout under current settings, policy, treatment status/parts, cumulative unmet demand, and the three most recent meaningful events. Inspecting the public crisis board shows the current simulation summary; Mara and Sato respond to recorded shortages without changing the unresolved freighter facts. K saves the full event history, current state, and canonical Mechflow model hash to a local versioned JSON file; L rejects a save from a different hashed model. Older saves without a hash still load with a warning. There is no autosave.
+- E records each source's established statements and uncertainty in a player case file; J opens it. Repeated claims cite all sources that corroborated them. Unnamed rumors stay marked as rumor, and no culprit or specific accusation is added.
+
+The initial stock, rates, and repair outcome are prototype assumptions, not established colony facts. They do not describe the missing freighter's cargo inventory or establish a canonical treatment design. Replace them after quantities, treatment constraints, and action consequences are agreed.
+
 ## Intended loop and minimum scope
 
 Observe shortage and affected people; gather information through conversation, work, travel, or trade; choose an action; let simulation validate costs, permissions, and consequences; advance a tick; observe supply, trust, investigation, and eligible storylets. Exact branch structure and endings are not established.
